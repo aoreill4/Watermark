@@ -1,0 +1,23 @@
+{
+  "name": "dynamark",
+  "version": "0.1.0",
+  "description": "AI-resistant dynamic image watermarking library",
+  "main": "dist/dynamark.js",
+  "module": "dist/dynamark.esm.js",
+  "browser": "dist/dynamark.min.js",
+  "files": ["dist/", "src/"],
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c --watch",
+    "demo": "npx serve demo/",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "rollup": "^4.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser": "^0.4.0"
+  },
+  "keywords": ["watermark", "canvas", "drm", "image-protection", "animation"],
+  "license": "MIT",
+  "type": "module"
+}
