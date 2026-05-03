@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DynaMark Live Demo — AI-Resistant Watermarking</title>
 
-  <!-- Pulls the latest built library straight from the GitHub branch via jsDelivr CDN. -->
-  <!-- jsDelivr URL format: https://cdn.jsdelivr.net/gh/<user>/<repo>@<branch>/<path> -->
-  <script src="https://cdn.jsdelivr.net/gh/aoreill4/Watermark@claude/ai-resistant-watermark-mIdJt/dist/dynamark.min.js"></script>
+  <!-- Loads the bundled library from the same deployment. -->
+  <script src="./dist/dynamark.min.js"></script>
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -303,7 +302,7 @@
   <header>
     <h1>DynaMark</h1>
     <p>AI-resistant dynamic watermarking — live demo loaded from GitHub</p>
-    <div class="cdn-source" id="cdn-source">Loading from jsDelivr CDN…</div>
+    <div class="cdn-source" id="cdn-source">Loading…</div>
   </header>
 
   <div id="error-banner" class="loading-banner"></div>
@@ -411,8 +410,7 @@
 (function() {
   const REPO = 'aoreill4/Watermark';
   const BRANCH = 'claude/ai-resistant-watermark-mIdJt';
-  document.getElementById('cdn-source').textContent =
-    `cdn.jsdelivr.net/gh/${REPO}@${BRANCH}/dist/dynamark.min.js`;
+  document.getElementById('cdn-source').textContent = `${REPO}@${BRANCH}`;
 
   // Wait until the global DynaMark is available
   function ready(cb) {
