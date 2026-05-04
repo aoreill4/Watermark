@@ -7,51 +7,49 @@
   const defaults = {
     // Source image
     image: null,
-    imagePosition: 'cover', // 'cover' | 'contain' | 'fill'
+    imagePosition: 'cover',
 
-    // Primary watermark
-    text: 'CONFIDENTIAL',
+    // Watermark text (empty = no text overlay)
+    text: '',
     logo: null,
     font: 'bold 18px Arial, sans-serif',
     color: 'rgba(255,255,255,0.7)',
     strokeColor: 'rgba(0,0,0,0.4)',
     strokeWidth: 1,
-    rotation: -30,       // degrees, stamp rotation
-    rotationSpeed: 0,    // degrees/second continuous rotation
+    rotation: -30,
+    rotationSpeed: 0,
 
-    // Motion
-    path: 'lissajous',   // 'lissajous' | 'lemniscate' | 'random'
+    // Motion (path shared by spotlight and watermark)
+    path: 'lissajous',
     speed: 1.0,
     lissajousA: 3,
     lissajousB: 2,
     lissajousDelta: Math.PI / 4,
     margin: 24,
 
-    // Opacity
+    // Watermark opacity pulse
     opacity: 0.7,
     opacityPulse: true,
-    opacityPulseSpeed: 0.6,  // Hz
-    opacityPulseDepth: 0.15, // ± fraction
+    opacityPulseSpeed: 0.6,
+    opacityPulseDepth: 0.15,
 
     // Color perturbation
     colorPerturbation: true,
-    colorPerturbationSpeed: 0.25, // Hz
-    colorPerturbationDepth: 20,   // ± degrees in HSL hue
+    colorPerturbationSpeed: 0.25,
+    colorPerturbationDepth: 20,
 
     // Tiled ghost layer
     tiledEnabled: true,
-    tiledOpacity: 0.07,
+    tiledOpacity: 0.06,
     tiledSpacing: 160,
     tiledAngle: -30,
 
-    // Spotlight (the moving "clear window" — image is obscured everywhere else)
+    // Spotlight — moving clear window; everything outside shows the decoy image
     spotlightEnabled: true,
-    spotlightRadius: 0.28,         // fraction of min(width, height); 0.28 ≈ ~30% of image
-    spotlightFeather: 0.5,         // 0–1, where the soft falloff starts (lower = sharper edge)
-    spotlightMargin: 60,           // px, keeps centre away from canvas edges
-    obscureColor: 'rgba(8,12,20,0.93)', // the colour used to obscure everything outside the spotlight
-    watermarkFollowsSpotlight: true,    // text watermark sits inside the clear window
-    watermarkSpotlightOffset: 0,        // px, vertical offset of text from spotlight centre
+    spotlightRadius: 0.50,          // 50% of min(w,h)
+    spotlightFeather: 0.75,         // soft edge falloff
+    spotlightMargin: 60,
+    watermarkFollowsSpotlight: false,
 
     // Performance
     targetFps: 30,
@@ -175,6 +173,68 @@
       }
 
       ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
+
+    get canvas() { return this._canvas; }
+  }
+
+  // Builds a tile-scrambled version of the source image used as the decoy background.
+  // Tiles are shuffled with a fixed seed so the result is stable but spatially wrong —
+  // same colour palette as the real image, which confuses AI reconstruction models.
+  class DecoyLayer {
+    constructor() {
+      this._canvas = document.createElement('canvas');
+      this._ctx = this._canvas.getContext('2d');
+    }
+
+    setImage(sourceCanvas) {
+      const sw = sourceCanvas.width;
+      const sh = sourceCanvas.height;
+      this._canvas.width = sw;
+      this._canvas.height = sh;
+
+      const COLS = 14;
+      const ROWS = 10;
+      const tw = sw / COLS;
+      const th = sh / ROWS;
+
+      // Build a list of source tile indices and shuffle with a fixed seed
+      const total = COLS * ROWS;
+      const indices = Array.from({ length: total }, (_, i) => i);
+      let seed = 0xA5B4C3D2;
+      for (let i = total - 1; i > 0; i--) {
+        seed = Math.imul(seed ^ (seed >>> 15), seed | 1);
+        seed ^= seed + Math.imul(seed ^ (seed >>> 7), seed | 61);
+        seed = (seed ^ (seed >>> 14)) >>> 0;
+        const j = seed % (i + 1);
+        [indices[i], indices[j]] = [indices[j], indices[i]];
+      }
+
+      // Draw each destination tile using its shuffled source tile
+      const ctx = this._ctx;
+      ctx.clearRect(0, 0, sw, sh);
+      for (let dest = 0; dest < total; dest++) {
+        const src = indices[dest];
+        const srcCol = src % COLS;
+        const srcRow = Math.floor(src / COLS);
+        const dstCol = dest % COLS;
+        const dstRow = Math.floor(dest / COLS);
+        ctx.drawImage(
+          sourceCanvas,
+          srcCol * tw, srcRow * th, tw, th,
+          dstCol * tw, dstRow * th, tw, th,
+        );
+      }
+
+      // Subtle darkening + desaturation tint so the decoy reads as background
+      ctx.fillStyle = 'rgba(10,10,30,0.35)';
+      ctx.fillRect(0, 0, sw, sh);
+    }
+
+    resize(w, h) {
+      // Decoy is regenerated from the source image on setImage; just track size
+      this._canvas.width = w;
+      this._canvas.height = h;
     }
 
     get canvas() { return this._canvas; }
@@ -559,19 +619,18 @@
     get canvas() { return this._canvas; }
   }
 
-  // Renders a full-coverage obscure overlay with a moving clear spotlight cut through it.
-  // The spotlight reveals the sharp image underneath while everything outside is
-  // darkened, making screenshots only ever capture a partial view.
+  // Emits a pure alpha-mask canvas.
+  // High alpha at the spotlight centre → real image shows through.
+  // Zero alpha at the edges → decoy image shows through.
+  // The engine composites real-over-decoy using this mask via destination-in.
   class SpotlightLayer {
     constructor(config) {
       this._canvas = document.createElement('canvas');
       this._ctx = this._canvas.getContext('2d');
       this._t = 0;
-      this._path = null;
-      this._config = config;
-      // Current spotlight centre, updated each tick, shared with WatermarkLayer
       this._cx = 0;
       this._cy = 0;
+      this._config = config;
       this._buildPath();
     }
 
@@ -598,48 +657,37 @@
       if (rebuildPath) this._buildPath();
     }
 
-    tick({ timestamp }) {
+    tick() {
       const c = this._config;
-      const canvas = this._canvas;
-      const ctx = this._ctx;
+      const { _canvas: canvas, _ctx: ctx } = this;
       const w = canvas.width;
       const h = canvas.height;
 
-      // Advance path phase and get spotlight centre.
-      // Pass 0×0 stamp size so toCanvas returns the centre point directly.
       this._t = mod(this._t + c.speed * 0.0005, 1);
       const pos = this._path.toCanvas(this._t, w, h, 0, 0, c.spotlightMargin);
       this._cx = pos.x;
       this._cy = pos.y;
 
       const radius = Math.min(w, h) * c.spotlightRadius;
+      const feather = c.spotlightFeather;
 
       ctx.clearRect(0, 0, w, h);
 
-      // Step 1: fill entire canvas with the obscure colour
-      ctx.fillStyle = c.obscureColor;
-      ctx.fillRect(0, 0, w, h);
-
-      // Step 2: punch a soft radial hole through the overlay.
-      // destination-out erases what we draw, revealing the image below.
-      ctx.globalCompositeOperation = 'destination-out';
-
+      // Radial gradient: alpha 1 at centre → alpha 0 at edge.
+      // Used by the engine as a destination-in mask so the real image only
+      // shows inside the spotlight and the decoy shows everywhere else.
       const grad = ctx.createRadialGradient(this._cx, this._cy, 0, this._cx, this._cy, radius);
-      grad.addColorStop(0,                              'rgba(0,0,0,1)');   // fully clear at centre
-      grad.addColorStop(c.spotlightFeather,             'rgba(0,0,0,0.98)');
-      grad.addColorStop(c.spotlightFeather + 0.25,      'rgba(0,0,0,0.35)');
-      grad.addColorStop(1,                              'rgba(0,0,0,0)');   // fully obscured at edge
+      grad.addColorStop(0,            'rgba(0,0,0,1)');
+      grad.addColorStop(feather,      'rgba(0,0,0,0.97)');
+      grad.addColorStop(feather + 0.2,'rgba(0,0,0,0.25)');
+      grad.addColorStop(1,            'rgba(0,0,0,0)');
 
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
-
-      ctx.globalCompositeOperation = 'source-over';
     }
 
-    // WatermarkLayer reads this to position text inside the clear window
     get center() { return { x: this._cx, y: this._cy }; }
-
-    get canvas() { return this._canvas; }
+    get canvas()  { return this._canvas; }
   }
 
   class WatermarkEngine {
@@ -656,10 +704,15 @@
 
       this._canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-      this._imageLayer = new ImageLayer();
-      this._spotlightLayer = new SpotlightLayer(this._config);
-      this._watermarkLayer = new WatermarkLayer(this._config);
-      this._tiledLayer = new TiledLayer(this._config);
+      this._imageLayer    = new ImageLayer();
+      this._decoyLayer    = new DecoyLayer();
+      this._spotlightLayer= new SpotlightLayer(this._config);
+      this._watermarkLayer= new WatermarkLayer(this._config);
+      this._tiledLayer    = new TiledLayer(this._config);
+
+      // Intermediate canvas used to mask the real image to the spotlight area
+      this._maskedCanvas = document.createElement('canvas');
+      this._maskedCtx    = this._maskedCanvas.getContext('2d');
 
       this._loop = new AnimationLoop(this._config.targetFps);
       this._loop.onTick(this._onTick.bind(this));
@@ -671,7 +724,11 @@
 
     async setImage(source) {
       await this._imageLayer.setImage(source, this._config.imagePosition);
-      this._imageLayer.resize(this._canvas.width, this._canvas.height);
+      const w = this._canvas.width;
+      const h = this._canvas.height;
+      this._imageLayer.resize(w, h);
+      // Build decoy from the now-rendered image layer
+      this._decoyLayer.setImage(this._imageLayer.canvas);
       return this;
     }
 
@@ -702,19 +759,19 @@
       const h = this._container.clientHeight || 600;
       this._canvas.width = w;
       this._canvas.height = h;
+      this._maskedCanvas.width = w;
+      this._maskedCanvas.height = h;
       this._imageLayer.resize(w, h);
+      this._decoyLayer.resize(w, h);
       this._spotlightLayer.resize(w, h);
       this._watermarkLayer.resize(w, h);
       this._tiledLayer.resize(w, h);
     }
 
     _onTick(info) {
-      // Spotlight ticks first so its centre is current when the watermark reads it.
-      if (this._config.spotlightEnabled) {
-        this._spotlightLayer.tick(info);
-      }
+      this._spotlightLayer.tick(info);
 
-      const externalCenter = (this._config.spotlightEnabled && this._config.watermarkFollowsSpotlight)
+      const externalCenter = this._config.watermarkFollowsSpotlight
         ? this._spotlightLayer.center
         : null;
 
@@ -725,24 +782,31 @@
     }
 
     _compose() {
-      const ctx = this._ctx;
+      const ctx  = this._ctx;
+      const mCtx = this._maskedCtx;
       const w = this._canvas.width;
       const h = this._canvas.height;
 
       ctx.clearRect(0, 0, w, h);
 
-      // 1. Source image
-      ctx.drawImage(this._imageLayer.canvas, 0, 0);
+      // 1. Decoy (tile-scrambled image) fills the entire canvas
+      ctx.drawImage(this._decoyLayer.canvas, 0, 0);
 
-      // 2. Spotlight overlay — obscures everything except the moving clear window
-      if (this._config.spotlightEnabled) {
-        ctx.drawImage(this._spotlightLayer.canvas, 0, 0);
+      // 2. Mask the real image to the spotlight area and draw it over the decoy.
+      //    destination-in keeps only the pixels where the mask has non-zero alpha.
+      mCtx.clearRect(0, 0, w, h);
+      mCtx.drawImage(this._imageLayer.canvas, 0, 0);
+      mCtx.globalCompositeOperation = 'destination-in';
+      mCtx.drawImage(this._spotlightLayer.canvas, 0, 0);
+      mCtx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(this._maskedCanvas, 0, 0);
+
+      // 3. Watermark text (in spotlight window if watermarkFollowsSpotlight)
+      if (this._config.text) {
+        ctx.drawImage(this._watermarkLayer.canvas, 0, 0);
       }
 
-      // 3. Primary text/logo watermark (sits in the clear window when following spotlight)
-      ctx.drawImage(this._watermarkLayer.canvas, 0, 0);
-
-      // 4. Tiled ghost layer — full-coverage anti-removal pattern
+      // 4. Tiled ghost — always on top
       ctx.drawImage(this._tiledLayer.canvas, 0, 0);
     }
   }

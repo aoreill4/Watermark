@@ -1,51 +1,49 @@
 export const defaults = {
   // Source image
   image: null,
-  imagePosition: 'cover', // 'cover' | 'contain' | 'fill'
+  imagePosition: 'cover',
 
-  // Primary watermark
-  text: 'CONFIDENTIAL',
+  // Watermark text (empty = no text overlay)
+  text: '',
   logo: null,
   font: 'bold 18px Arial, sans-serif',
   color: 'rgba(255,255,255,0.7)',
   strokeColor: 'rgba(0,0,0,0.4)',
   strokeWidth: 1,
-  rotation: -30,       // degrees, stamp rotation
-  rotationSpeed: 0,    // degrees/second continuous rotation
+  rotation: -30,
+  rotationSpeed: 0,
 
-  // Motion
-  path: 'lissajous',   // 'lissajous' | 'lemniscate' | 'random'
+  // Motion (path shared by spotlight and watermark)
+  path: 'lissajous',
   speed: 1.0,
   lissajousA: 3,
   lissajousB: 2,
   lissajousDelta: Math.PI / 4,
   margin: 24,
 
-  // Opacity
+  // Watermark opacity pulse
   opacity: 0.7,
   opacityPulse: true,
-  opacityPulseSpeed: 0.6,  // Hz
-  opacityPulseDepth: 0.15, // ± fraction
+  opacityPulseSpeed: 0.6,
+  opacityPulseDepth: 0.15,
 
   // Color perturbation
   colorPerturbation: true,
-  colorPerturbationSpeed: 0.25, // Hz
-  colorPerturbationDepth: 20,   // ± degrees in HSL hue
+  colorPerturbationSpeed: 0.25,
+  colorPerturbationDepth: 20,
 
   // Tiled ghost layer
   tiledEnabled: true,
-  tiledOpacity: 0.07,
+  tiledOpacity: 0.06,
   tiledSpacing: 160,
   tiledAngle: -30,
 
-  // Spotlight (the moving "clear window" — image is obscured everywhere else)
+  // Spotlight — moving clear window; everything outside shows the decoy image
   spotlightEnabled: true,
-  spotlightRadius: 0.28,         // fraction of min(width, height); 0.28 ≈ ~30% of image
-  spotlightFeather: 0.5,         // 0–1, where the soft falloff starts (lower = sharper edge)
-  spotlightMargin: 60,           // px, keeps centre away from canvas edges
-  obscureColor: 'rgba(8,12,20,0.93)', // the colour used to obscure everything outside the spotlight
-  watermarkFollowsSpotlight: true,    // text watermark sits inside the clear window
-  watermarkSpotlightOffset: 0,        // px, vertical offset of text from spotlight centre
+  spotlightRadius: 0.50,          // 50% of min(w,h)
+  spotlightFeather: 0.75,         // soft edge falloff
+  spotlightMargin: 60,
+  watermarkFollowsSpotlight: false,
 
   // Performance
   targetFps: 30,

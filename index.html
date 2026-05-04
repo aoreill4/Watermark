@@ -3,34 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DynaMark Live Demo — AI-Resistant Watermarking</title>
-
-  <!-- Loads the bundled library from the same deployment. -->
+  <title>DynaMark — AI-Resistant Watermarking</title>
   <script src="./dist/dynamark.min.js"></script>
-
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #0a0e1a 0%, #131a2e 100%);
+      background: #080c14;
       color: #e2e8f0;
-      min-height: 100vh;
-      padding: 24px;
-    }
-
-    .wrap {
-      max-width: 1200px;
-      margin: 0 auto;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
     header {
-      text-align: center;
-      margin-bottom: 24px;
+      flex-shrink: 0;
+      padding: 14px 24px;
+      border-bottom: 1px solid #1a2030;
+      display: flex;
+      align-items: center;
+      gap: 14px;
     }
 
     header h1 {
-      font-size: 2rem;
+      font-size: 1.25rem;
       font-weight: 800;
       letter-spacing: -0.02em;
       background: linear-gradient(135deg, #60a5fa, #a78bfa);
@@ -39,382 +37,273 @@
       background-clip: text;
     }
 
-    header p {
-      color: #64748b;
-      font-size: 0.92rem;
-      margin-top: 6px;
-    }
-
-    .cdn-source {
-      display: inline-block;
-      margin-top: 10px;
-      padding: 4px 12px;
-      background: rgba(96, 165, 250, 0.1);
-      border: 1px solid rgba(96, 165, 250, 0.2);
-      border-radius: 12px;
-      font-size: 0.72rem;
+    .badge {
+      font-size: 0.68rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      background: rgba(96,165,250,0.12);
       color: #60a5fa;
-      font-family: 'SF Mono', Menlo, monospace;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 20px;
-      margin-top: 24px;
-    }
-
-    @media (max-width: 880px) {
-      .grid { grid-template-columns: 1fr; }
-    }
-
-    /* Preview */
-    .preview {
-      background: #06080f;
-      border: 1px solid #1e2430;
-      border-radius: 12px;
-      overflow: hidden;
-      min-height: 480px;
-      position: relative;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .preview-bar {
-      padding: 10px 16px;
-      border-bottom: 1px solid #1e2430;
-      font-size: 0.78rem;
-      color: #64748b;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      border-radius: 4px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
     }
 
     .live-dot {
       display: inline-block;
-      width: 6px; height: 6px;
+      width: 7px; height: 7px;
       background: #22c55e;
       border-radius: 50%;
-      margin-right: 6px;
-      animation: pulse 1.6s infinite;
+      animation: pulse 1.8s infinite;
+      margin-left: auto;
+    }
+    @keyframes pulse { 50% { opacity: 0.2; } }
+
+    .layout {
+      flex: 1;
+      display: flex;
+      min-height: 0;
     }
 
-    @keyframes pulse { 50% { opacity: 0.3; } }
-
+    /* Preview */
     #preview-container {
       flex: 1;
       position: relative;
+      background: #04060a;
     }
 
     #preview-container canvas {
-      position: absolute;
+      position: absolute !important;
       inset: 0;
       width: 100% !important;
       height: 100% !important;
     }
 
-    .placeholder {
+    /* Drop hint when no image */
+    #drop-overlay {
       position: absolute;
       inset: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: #334155;
       gap: 12px;
+      color: #2a3448;
       font-size: 0.9rem;
+      pointer-events: none;
     }
 
-    /* Controls */
-    .controls {
-      background: #0d1117;
-      border: 1px solid #1e2430;
-      border-radius: 12px;
-      padding: 18px;
+    #drop-overlay svg { opacity: 0.25; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: #0b0f1a;
+      border-left: 1px solid #1a2030;
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 18px;
+    }
+
+    .section {
+      padding: 16px;
+      border-bottom: 1px solid #141a28;
     }
 
     .section h3 {
-      font-size: 0.7rem;
+      font-size: 0.67rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #475569;
-      margin-bottom: 10px;
+      letter-spacing: 0.1em;
+      color: #3a4a6a;
+      margin-bottom: 12px;
     }
 
     .field { margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
 
     .field label {
       display: flex;
       justify-content: space-between;
-      font-size: 0.8rem;
-      color: #94a3b8;
+      font-size: 0.78rem;
+      color: #7a8eaa;
       margin-bottom: 4px;
     }
 
     .field label span {
       color: #60a5fa;
       font-variant-numeric: tabular-nums;
-      font-size: 0.75rem;
     }
 
     input[type="range"] {
       width: 100%;
       accent-color: #3b82f6;
+      cursor: pointer;
     }
 
-    input[type="text"], select {
+    input[type="text"] {
       width: 100%;
-      background: #1e2430;
-      border: 1px solid #2d3748;
+      background: #141c2c;
+      border: 1px solid #1e2a40;
       border-radius: 6px;
       color: #e2e8f0;
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       padding: 7px 10px;
       outline: none;
     }
+    input[type="text"]:focus { border-color: #3b82f6; }
 
-    input[type="text"]:focus, select:focus { border-color: #3b82f6; }
-
-    .btn {
-      width: 100%;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
-      border: none;
-      border-radius: 6px;
-      color: white;
-      font-size: 0.85rem;
-      font-weight: 600;
-      padding: 9px;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.1s;
-    }
-
-    .btn:hover { opacity: 0.92; }
-    .btn:active { transform: scale(0.98); }
-
-    .btn.secondary {
-      background: #1e2430;
-      border: 1px solid #2d3748;
-      color: #94a3b8;
-    }
-
-    .attack-grid {
-      display: grid;
-      gap: 6px;
-    }
-
-    .toggle-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .toggle-row label {
-      font-size: 0.82rem;
-      color: #94a3b8;
-    }
-
-    .toggle {
-      position: relative;
-      width: 36px; height: 20px;
-    }
-    .toggle input { opacity: 0; }
-    .track {
-      position: absolute; inset: 0;
-      background: #2d3748; border-radius: 20px;
-      cursor: pointer; transition: background 0.2s;
-    }
-    .toggle input:checked + .track { background: #3b82f6; }
-    .track::before {
-      content: '';
-      position: absolute;
-      width: 14px; height: 14px;
-      left: 3px; top: 3px;
-      background: white; border-radius: 50%;
-      transition: transform 0.2s;
-    }
-    .toggle input:checked + .track::before { transform: translateX(16px); }
-
-    .file-input { display: none; }
-
-    .drop {
-      border: 2px dashed #2d3748;
+    /* File drop area */
+    .drop-area {
+      border: 1.5px dashed #1e2a40;
       border-radius: 8px;
-      padding: 14px;
+      padding: 14px 10px;
       text-align: center;
-      font-size: 0.8rem;
-      color: #64748b;
+      font-size: 0.78rem;
+      color: #3a4a6a;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .drop-area:hover, .drop-area.over {
+      border-color: #3b82f6;
+      color: #60a5fa;
+    }
+    .drop-area input { display: none; }
+
+    /* Attack buttons */
+    .attacks { display: flex; flex-direction: column; gap: 6px; }
+
+    .atk {
+      background: #0e1525;
+      border: 1px solid #1e2a40;
+      border-radius: 6px;
+      color: #7a8eaa;
+      font-size: 0.78rem;
+      padding: 8px 10px;
+      cursor: pointer;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .atk:hover { border-color: #ef4444; color: #f87171; }
+
+    /* Frame counter */
+    #frame-count {
+      font-size: 0.7rem;
+      color: #1e2a40;
+      margin-left: auto;
+      font-variant-numeric: tabular-nums;
     }
 
-    .drop:hover, .drop.over { border-color: #3b82f6; color: #60a5fa; }
-
-    /* Result modal */
+    /* Modal */
     .modal {
       display: none;
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.85);
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 100;
       align-items: center;
       justify-content: center;
       flex-direction: column;
       gap: 14px;
-      padding: 20px;
-      z-index: 100;
+      padding: 24px;
     }
     .modal.show { display: flex; }
-    .modal h2 { font-size: 1.1rem; }
+    .modal h2 { font-size: 1rem; }
     .modal p {
-      max-width: 500px;
+      max-width: 460px;
       text-align: center;
-      color: #94a3b8;
-      font-size: 0.85rem;
-      line-height: 1.5;
+      color: #7a8eaa;
+      font-size: 0.82rem;
+      line-height: 1.55;
     }
     .modal canvas {
       max-width: 80vw;
-      max-height: 60vh;
+      max-height: 55vh;
       border-radius: 6px;
-      border: 1px solid #2d3748;
+      border: 1px solid #1e2a40;
     }
-
-    .loading-banner {
-      background: #1a3a5c;
-      color: #60a5fa;
-      padding: 8px 16px;
+    .close-btn {
+      background: #141c2c;
+      border: 1px solid #1e2a40;
       border-radius: 6px;
+      color: #e2e8f0;
+      padding: 8px 22px;
       font-size: 0.82rem;
-      text-align: center;
-      margin-bottom: 16px;
-      display: none;
+      cursor: pointer;
     }
-
-    .loading-banner.show { display: block; }
+    .close-btn:hover { background: #1e2a40; }
   </style>
 </head>
 <body>
 
-<div class="wrap">
+<header>
+  <h1>DynaMark</h1>
+  <span class="badge">AI-Resistant</span>
+  <span id="frame-count">—</span>
+  <span class="live-dot"></span>
+</header>
 
-  <header>
-    <h1>DynaMark</h1>
-    <p>AI-resistant dynamic watermarking — live demo loaded from GitHub</p>
-    <div class="cdn-source" id="cdn-source">Loading…</div>
-  </header>
+<div class="layout">
 
-  <div id="error-banner" class="loading-banner"></div>
+  <!-- Preview -->
+  <div id="preview-container">
+    <div id="drop-overlay">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <path d="M21 15l-5-5L5 21"/>
+      </svg>
+      <span>Drop an image to start</span>
+    </div>
+  </div>
 
-  <div class="grid">
+  <!-- Sidebar -->
+  <div class="sidebar">
 
-    <!-- LEFT: Live preview -->
-    <div class="preview">
-      <div class="preview-bar">
-        <span><span class="live-dot"></span>Live watermark active</span>
-        <span id="frame-info">Frame —</span>
+    <div class="section">
+      <h3>Image</h3>
+      <label class="drop-area" id="drop-area">
+        <input type="file" id="file-input" accept="image/*" />
+        Drop or click to upload
+      </label>
+    </div>
+
+    <div class="section">
+      <h3>Spotlight</h3>
+      <div class="field">
+        <label>Window size <span id="radius-v">50%</span></label>
+        <input type="range" id="radius" min="0.15" max="0.70" step="0.01" value="0.50" />
       </div>
-      <div id="preview-container">
-        <div class="placeholder" id="placeholder">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
-            <path d="M21 15l-5-5L5 21"/>
-          </svg>
-          <span>Load the sample image or drop your own to start</span>
-        </div>
+      <div class="field">
+        <label>Edge softness <span id="feather-v">0.75</span></label>
+        <input type="range" id="feather" min="0.10" max="0.95" step="0.01" value="0.75" />
+      </div>
+      <div class="field">
+        <label>Speed <span id="speed-v">1.0×</span></label>
+        <input type="range" id="speed" min="0.1" max="4" step="0.1" value="1.0" />
       </div>
     </div>
 
-    <!-- RIGHT: Controls -->
-    <div class="controls">
-
-      <div class="section">
-        <h3>Image</h3>
-        <button class="btn" id="sample-btn">Load Sample Image</button>
-        <label class="drop" id="drop" style="margin-top:8px">
-          <input type="file" id="file-input" class="file-input" accept="image/*" />
-          or drop your own here
-        </label>
+    <div class="section">
+      <h3>Watermark text</h3>
+      <div class="field">
+        <input type="text" id="wm-text" placeholder="Leave blank for none" value="" />
       </div>
+    </div>
 
-      <div class="section">
-        <h3>Watermark</h3>
-        <div class="field">
-          <input type="text" id="text" value="CONFIDENTIAL" />
-        </div>
-        <div class="field">
-          <label>Opacity <span id="opacity-v">0.70</span></label>
-          <input type="range" id="opacity" min="0.1" max="1" step="0.01" value="0.70" />
-        </div>
-        <div class="field">
-          <label>Font size <span id="fontsize-v">22px</span></label>
-          <input type="range" id="fontsize" min="10" max="48" value="22" />
-        </div>
+    <div class="section">
+      <h3>Attack simulator</h3>
+      <p style="font-size:0.73rem;color:#2e3d56;line-height:1.5;margin-bottom:10px">
+        Prove common attacks fail against a dynamic spotlight.
+      </p>
+      <div class="attacks">
+        <button class="atk" id="atk-shot">📸 Screenshot (current frame)</button>
+        <button class="atk" id="atk-avg">🎞 Frame average (60 frames)</button>
+        <button class="atk" id="atk-extract">🔓 Canvas extraction</button>
       </div>
-
-      <div class="section">
-        <h3>Motion</h3>
-        <div class="field">
-          <select id="path">
-            <option value="lissajous">Lissajous (recommended)</option>
-            <option value="lemniscate">Lemniscate (figure-8)</option>
-            <option value="random">Random walk</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Speed <span id="speed-v">1.0×</span></label>
-          <input type="range" id="speed" min="0.1" max="5" step="0.1" value="1.0" />
-        </div>
-      </div>
-
-      <div class="section">
-        <h3>Spotlight</h3>
-        <div class="toggle-row" style="margin-bottom:10px">
-          <label>Enabled</label>
-          <label class="toggle">
-            <input type="checkbox" id="spotlight" checked />
-            <span class="track"></span>
-          </label>
-        </div>
-        <div class="field">
-          <label>Window size <span id="spot-radius-v">28%</span></label>
-          <input type="range" id="spot-radius" min="0.10" max="0.50" step="0.01" value="0.28" />
-        </div>
-        <div class="field">
-          <label>Edge softness <span id="spot-feather-v">0.50</span></label>
-          <input type="range" id="spot-feather" min="0.10" max="0.90" step="0.01" value="0.50" />
-        </div>
-        <div class="field">
-          <label>Obscure strength <span id="obscure-v">0.93</span></label>
-          <input type="range" id="obscure" min="0.5" max="1" step="0.01" value="0.93" />
-        </div>
-      </div>
-
-      <div class="section">
-        <h3>Ghost Layer</h3>
-        <div class="toggle-row" style="margin-bottom:10px">
-          <label>Enabled</label>
-          <label class="toggle">
-            <input type="checkbox" id="tiled" checked />
-            <span class="track"></span>
-          </label>
-        </div>
-        <div class="field">
-          <label>Opacity <span id="tiled-opacity-v">0.07</span></label>
-          <input type="range" id="tiled-opacity" min="0.01" max="0.3" step="0.01" value="0.07" />
-        </div>
-      </div>
-
-      <div class="section">
-        <h3>Try Attacks</h3>
-        <div class="attack-grid">
-          <button class="btn secondary" id="attack-shot">📸 Screenshot</button>
-          <button class="btn secondary" id="attack-avg">🎞 Frame Average (60)</button>
-          <button class="btn secondary" id="attack-extract">🔓 Canvas Extract</button>
-        </div>
-      </div>
-
     </div>
 
   </div>
@@ -423,227 +312,213 @@
 
 <!-- Result modal -->
 <div class="modal" id="modal">
-  <h2 id="modal-title">Result</h2>
+  <h2 id="modal-title"></h2>
   <canvas id="modal-canvas"></canvas>
   <p id="modal-desc"></p>
-  <button class="btn" style="max-width:200px" id="modal-close">Close</button>
+  <button class="close-btn" id="modal-close">Close</button>
 </div>
 
 <script>
-(function() {
-  const REPO = 'aoreill4/Watermark';
-  const BRANCH = 'claude/ai-resistant-watermark-mIdJt';
-  document.getElementById('cdn-source').textContent = `${REPO}@${BRANCH}`;
+(function () {
+  let engine = null;
 
-  // Wait until the global DynaMark is available
-  function ready(cb) {
-    if (typeof DynaMark !== 'undefined') return cb();
-    let tries = 0;
-    const t = setInterval(() => {
-      tries++;
-      if (typeof DynaMark !== 'undefined') {
-        clearInterval(t);
-        cb();
-      } else if (tries > 50) {
-        clearInterval(t);
-        const banner = document.getElementById('error-banner');
-        banner.textContent = 'Failed to load DynaMark from CDN. Make sure dist/ is committed and pushed.';
-        banner.classList.add('show');
-      }
-    }, 100);
+  // ── Sample image generator ──────────────────────────────────────────────
+  function buildSampleCanvas() {
+    const c = document.createElement('canvas');
+    c.width = 1200; c.height = 750;
+    const ctx = c.getContext('2d');
+
+    // Sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, 420);
+    sky.addColorStop(0, '#0d1b4b');
+    sky.addColorStop(0.5, '#1a3a7c');
+    sky.addColorStop(1, '#e07b54');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, 1200, 420);
+
+    // Sun / moon
+    const glow = ctx.createRadialGradient(900, 200, 0, 900, 200, 120);
+    glow.addColorStop(0, 'rgba(255,220,100,1)');
+    glow.addColorStop(0.4, 'rgba(255,160,50,0.6)');
+    glow.addColorStop(1, 'rgba(255,100,0,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, 1200, 500);
+
+    // Ocean
+    const ocean = ctx.createLinearGradient(0, 420, 0, 750);
+    ocean.addColorStop(0, '#1a4060');
+    ocean.addColorStop(1, '#0a1828');
+    ctx.fillStyle = ocean; ctx.fillRect(0, 420, 1200, 330);
+
+    // Reflection stripe
+    const ref = ctx.createLinearGradient(840, 0, 960, 0);
+    ref.addColorStop(0, 'rgba(255,200,80,0)');
+    ref.addColorStop(0.5, 'rgba(255,200,80,0.35)');
+    ref.addColorStop(1, 'rgba(255,200,80,0)');
+    ctx.fillStyle = ref; ctx.fillRect(0, 420, 1200, 330);
+
+    // Horizon city silhouette
+    ctx.fillStyle = '#0b1528';
+    for (const [x, w, h] of [
+      [0,80,120],[80,60,90],[140,100,160],[240,50,100],[290,80,140],
+      [370,60,80],[430,110,200],[540,70,120],[610,90,170],[700,60,90],
+      [760,120,180],[880,80,130],[960,100,150],[1060,70,100],[1130,70,110],
+    ]) {
+      ctx.fillRect(x, 420 - h, w, h + 5);
+    }
+
+    // Stars
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    for (let i = 0; i < 80; i++) {
+      const sx = Math.random() * 1200;
+      const sy = Math.random() * 280;
+      ctx.fillRect(sx, sy, Math.random() < 0.3 ? 2 : 1, Math.random() < 0.3 ? 2 : 1);
+    }
+
+    return c;
   }
 
-  ready(initDemo);
-
-  function initDemo() {
-    let engine = null;
-
-    function getConfig() {
-      const obscureA = parseFloat(document.getElementById('obscure').value);
-      return {
-        text: document.getElementById('text').value || 'CONFIDENTIAL',
-        font: `bold ${document.getElementById('fontsize').value}px Arial, sans-serif`,
-        opacity: parseFloat(document.getElementById('opacity').value),
-        path: document.getElementById('path').value,
-        speed: parseFloat(document.getElementById('speed').value),
-        spotlightEnabled: document.getElementById('spotlight').checked,
-        spotlightRadius: parseFloat(document.getElementById('spot-radius').value),
-        spotlightFeather: parseFloat(document.getElementById('spot-feather').value),
-        obscureColor: `rgba(8,12,20,${obscureA})`,
-        tiledEnabled: document.getElementById('tiled').checked,
-        tiledOpacity: parseFloat(document.getElementById('tiled-opacity').value),
-        onFrame: ({ frame }) => {
-          document.getElementById('frame-info').textContent = `Frame ${frame}`;
-        },
-      };
-    }
-
-    function start(src) {
-      if (engine) engine.destroy();
-      document.getElementById('placeholder').style.display = 'none';
-      const ctor = window.DynaMark.DynaMark || window.DynaMark;
-      engine = new ctor(document.getElementById('preview-container'), getConfig());
-      engine.setImage(src).then(() => engine.start());
-      window._engine = engine;
-    }
-
-    // Sample image generator
-    document.getElementById('sample-btn').addEventListener('click', () => {
-      const c = document.createElement('canvas');
-      c.width = 800; c.height = 500;
-      const ctx = c.getContext('2d');
-      const grad = ctx.createLinearGradient(0, 0, 800, 500);
-      grad.addColorStop(0, '#1a237e'); grad.addColorStop(0.4, '#0288d1');
-      grad.addColorStop(0.7, '#4caf50'); grad.addColorStop(1, '#8d6e63');
-      ctx.fillStyle = grad; ctx.fillRect(0, 0, 800, 500);
-      ctx.beginPath(); ctx.arc(640, 120, 60, 0, 2*Math.PI);
-      ctx.fillStyle = 'rgba(255,235,59,0.9)'; ctx.fill();
-      for (const [cx, cy] of [[150,80],[400,60],[600,100]]) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, 40, 0, 2*Math.PI);
-        ctx.arc(cx+40, cy-10, 30, 0, 2*Math.PI);
-        ctx.arc(cx+70, cy, 35, 0, 2*Math.PI);
-        ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill();
-      }
-      ctx.beginPath();
-      ctx.moveTo(0,320); ctx.lineTo(120,180); ctx.lineTo(240,300);
-      ctx.lineTo(350,150); ctx.lineTo(480,290); ctx.lineTo(600,160);
-      ctx.lineTo(720,260); ctx.lineTo(800,200); ctx.lineTo(800,500); ctx.lineTo(0,500);
-      ctx.fillStyle = '#2e7d32'; ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.font = 'bold 18px Arial';
-      ctx.fillText('DynaMark — protected sample', 20, 480);
-      start(c.toDataURL('image/png'));
-    });
-
-    // File input
-    const fileInput = document.getElementById('file-input');
-    document.getElementById('drop').addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files[0]) start(URL.createObjectURL(e.target.files[0]));
-    });
-    const drop = document.getElementById('drop');
-    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
-    drop.addEventListener('dragleave', () => drop.classList.remove('over'));
-    drop.addEventListener('drop', (e) => {
-      e.preventDefault();
-      drop.classList.remove('over');
-      const f = e.dataTransfer.files[0];
-      if (f && f.type.startsWith('image/')) start(URL.createObjectURL(f));
-    });
-
-    // Live updates
-    const updateLive = () => engine && engine.update(getConfig());
-    const ids = [
-      'text','opacity','fontsize','path','speed',
-      'spotlight','spot-radius','spot-feather','obscure',
-      'tiled','tiled-opacity',
-    ];
-    const labelMap = {
-      'opacity': 'opacity-v',
-      'fontsize': 'fontsize-v',
-      'speed': 'speed-v',
-      'spot-radius': 'spot-radius-v',
-      'spot-feather': 'spot-feather-v',
-      'obscure': 'obscure-v',
-      'tiled-opacity': 'tiled-opacity-v',
+  // ── Engine init ─────────────────────────────────────────────────────────
+  function getConfig() {
+    return {
+      path: 'lissajous',
+      speed: parseFloat(document.getElementById('speed').value),
+      spotlightRadius: parseFloat(document.getElementById('radius').value),
+      spotlightFeather: parseFloat(document.getElementById('feather').value),
+      text: document.getElementById('wm-text').value,
+      onFrame: ({ frame }) => {
+        document.getElementById('frame-count').textContent = `frame ${frame}`;
+      },
     };
-    ids.forEach((id) => {
-      document.getElementById(id).addEventListener('input', () => {
-        const dispId = labelMap[id];
-        if (dispId) {
-          const v = document.getElementById(id).value;
-          const fmt = id === 'fontsize' ? `${v}px`
-            : id === 'speed' ? `${parseFloat(v).toFixed(1)}×`
-            : id === 'spot-radius' ? `${Math.round(parseFloat(v) * 100)}%`
-            : parseFloat(v).toFixed(2);
-          document.getElementById(dispId).textContent = fmt;
-        }
-        updateLive();
-      });
-      document.getElementById(id).addEventListener('change', updateLive);
-    });
+  }
 
-    // ─ Attacks ─
-    function showResult(title, sourceCanvas, desc) {
-      const m = document.getElementById('modal');
-      const out = document.getElementById('modal-canvas');
-      out.width = sourceCanvas.width;
-      out.height = sourceCanvas.height;
-      out.getContext('2d').drawImage(sourceCanvas, 0, 0);
-      document.getElementById('modal-title').textContent = title;
-      document.getElementById('modal-desc').textContent = desc;
-      m.classList.add('show');
-    }
+  function startEngine(src) {
+    if (engine) engine.destroy();
+    document.getElementById('drop-overlay').style.display = 'none';
+    const Ctor = window.DynaMark && (window.DynaMark.DynaMark || window.DynaMark);
+    engine = new Ctor(document.getElementById('preview-container'), getConfig());
+    engine.setImage(src).then(() => engine.start());
+    window._engine = engine;
+  }
 
-    document.getElementById('modal-close').addEventListener('click', () => {
-      document.getElementById('modal').classList.remove('show');
-    });
+  // Auto-load the sample image immediately
+  startEngine(buildSampleCanvas().toDataURL('image/png'));
 
-    document.getElementById('attack-shot').addEventListener('click', () => {
-      if (!engine) return alert('Load an image first.');
-      const live = document.querySelector('#preview-container canvas');
-      const snap = document.createElement('canvas');
-      snap.width = live.width; snap.height = live.height;
-      snap.getContext('2d').drawImage(live, 0, 0);
-      showResult(
-        '📸 Screenshot — Watermark Captured',
-        snap,
-        'The screenshot caught the watermark exactly where it was. Because the watermark is always somewhere on screen and the ghost layer covers everything, no clean screenshot exists.'
-      );
-    });
+  // ── File upload / drop ──────────────────────────────────────────────────
+  const dropArea = document.getElementById('drop-area');
+  const fileInput = document.getElementById('file-input');
 
-    document.getElementById('attack-avg').addEventListener('click', async () => {
-      if (!engine) return alert('Load an image first.');
-      const btn = document.getElementById('attack-avg');
-      const orig = btn.textContent;
-      btn.textContent = 'Capturing 60 frames…';
-      btn.disabled = true;
+  dropArea.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) startEngine(URL.createObjectURL(e.target.files[0]));
+  });
 
-      const live = document.querySelector('#preview-container canvas');
-      const w = live.width, h = live.height;
-      const acc = new Float32Array(w * h * 4);
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => requestAnimationFrame(r));
-        const d = live.getContext('2d').getImageData(0, 0, w, h).data;
-        for (let j = 0; j < d.length; j++) acc[j] += d[j];
-      }
-      const out = document.createElement('canvas');
-      out.width = w; out.height = h;
-      const oc = out.getContext('2d');
-      const img = oc.createImageData(w, h);
-      for (let j = 0; j < img.data.length; j++) {
-        img.data[j] = j % 4 === 3 ? 255 : Math.round(acc[j] / 60);
-      }
-      oc.putImageData(img, 0, 0);
+  const previewEl = document.getElementById('preview-container');
+  previewEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropArea.classList.add('over');
+  });
+  previewEl.addEventListener('dragleave', () => dropArea.classList.remove('over'));
+  previewEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropArea.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) startEngine(URL.createObjectURL(f));
+  });
 
-      btn.textContent = orig;
-      btn.disabled = false;
-
-      showResult(
-        '🎞 Frame Average — Watermark Survives',
-        out,
-        'Averaging 60 frames produces a visible Lissajous trace from the moving watermark and the ghost layer remains fully visible. An attacker cannot recover a clean image this way.'
-      );
-    });
-
-    document.getElementById('attack-extract').addEventListener('click', () => {
-      if (!engine) return alert('Load an image first.');
-      const dataUrl = engine.export('image/png');
-      const i = new Image();
-      i.onload = () => {
-        const c = document.createElement('canvas');
-        c.width = i.width; c.height = i.height;
-        c.getContext('2d').drawImage(i, 0, 0);
-        showResult(
-          '🔓 Canvas Extract — Watermark Burned In',
-          c,
-          'The exported image contains the watermark burned into the frame. In production, CanvasGuard would block this entirely or return a heavily-watermarked composite.'
-        );
-      };
-      i.src = dataUrl;
+  // ── Live controls ────────────────────────────────────────────────────────
+  function bindSlider(id, displayId, fmt) {
+    document.getElementById(id).addEventListener('input', function () {
+      document.getElementById(displayId).textContent = fmt(this.value);
+      if (engine) engine.update(getConfig());
     });
   }
+
+  bindSlider('radius',  'radius-v',  v => `${Math.round(parseFloat(v) * 100)}%`);
+  bindSlider('feather', 'feather-v', v => parseFloat(v).toFixed(2));
+  bindSlider('speed',   'speed-v',   v => `${parseFloat(v).toFixed(1)}×`);
+
+  document.getElementById('wm-text').addEventListener('input', () => {
+    if (engine) engine.update(getConfig());
+  });
+
+  // ── Attack simulator ─────────────────────────────────────────────────────
+  function showModal(title, srcCanvas, desc) {
+    const out = document.getElementById('modal-canvas');
+    out.width = srcCanvas.width;
+    out.height = srcCanvas.height;
+    out.getContext('2d').drawImage(srcCanvas, 0, 0);
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-desc').textContent = desc;
+    document.getElementById('modal').classList.add('show');
+  }
+
+  document.getElementById('modal-close').addEventListener('click', () => {
+    document.getElementById('modal').classList.remove('show');
+  });
+
+  document.getElementById('atk-shot').addEventListener('click', () => {
+    if (!engine) return;
+    const live = document.querySelector('#preview-container canvas');
+    const snap = document.createElement('canvas');
+    snap.width = live.width; snap.height = live.height;
+    snap.getContext('2d').drawImage(live, 0, 0);
+    showModal(
+      '📸 Screenshot — only the spotlight window is recoverable',
+      snap,
+      'A screenshot captures only the small clear window at this instant. The rest of the image shows the tile-scrambled decoy, not the real content. To reconstruct the full image an attacker would need to stitch dozens of screenshots with precise alignment.'
+    );
+  });
+
+  document.getElementById('atk-avg').addEventListener('click', async () => {
+    if (!engine) return;
+    const btn = document.getElementById('atk-avg');
+    btn.textContent = 'Capturing…';
+    btn.disabled = true;
+
+    const live = document.querySelector('#preview-container canvas');
+    const w = live.width, h = live.height;
+    const acc = new Float32Array(w * h * 4);
+
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => requestAnimationFrame(r));
+      const d = live.getContext('2d').getImageData(0, 0, w, h).data;
+      for (let j = 0; j < d.length; j++) acc[j] += d[j];
+    }
+
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    const oc = out.getContext('2d');
+    const img = oc.createImageData(w, h);
+    for (let j = 0; j < img.data.length; j++) {
+      img.data[j] = j % 4 === 3 ? 255 : Math.round(acc[j] / 60);
+    }
+    oc.putImageData(img, 0, 0);
+
+    btn.textContent = '🎞 Frame average (60 frames)';
+    btn.disabled = false;
+
+    showModal(
+      '🎞 Frame average — Lissajous trace, not a clean image',
+      out,
+      'Averaging 60 frames produces the Lissajous path of the spotlight as a bright smear over the scrambled decoy. The real image structure never accumulates enough exposure to be reconstructed.'
+    );
+  });
+
+  document.getElementById('atk-extract').addEventListener('click', () => {
+    if (!engine) return;
+    const url = engine.export();
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      showModal(
+        '🔓 Canvas extraction — watermark burned into frame',
+        c,
+        'canvas.toDataURL() returns exactly what is visible at this moment — the decoy outside the spotlight and the real image only within it. Without recording the animation there is no way to recover the full image from a single extraction.'
+      );
+    };
+    img.src = url;
+  });
 })();
 </script>
 </body>
