@@ -38,6 +38,15 @@ export const defaults = {
   tiledSpacing: 160,
   tiledAngle: -30,
 
+  // Spotlight (the moving "clear window" — image is obscured everywhere else)
+  spotlightEnabled: true,
+  spotlightRadius: 0.28,         // fraction of min(width, height); 0.28 ≈ ~30% of image
+  spotlightFeather: 0.5,         // 0–1, where the soft falloff starts (lower = sharper edge)
+  spotlightMargin: 60,           // px, keeps centre away from canvas edges
+  obscureColor: 'rgba(8,12,20,0.93)', // the colour used to obscure everything outside the spotlight
+  watermarkFollowsSpotlight: true,    // text watermark sits inside the clear window
+  watermarkSpotlightOffset: 0,        // px, vertical offset of text from spotlight centre
+
   // Performance
   targetFps: 30,
 

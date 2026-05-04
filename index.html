@@ -369,6 +369,29 @@
       </div>
 
       <div class="section">
+        <h3>Spotlight</h3>
+        <div class="toggle-row" style="margin-bottom:10px">
+          <label>Enabled</label>
+          <label class="toggle">
+            <input type="checkbox" id="spotlight" checked />
+            <span class="track"></span>
+          </label>
+        </div>
+        <div class="field">
+          <label>Window size <span id="spot-radius-v">28%</span></label>
+          <input type="range" id="spot-radius" min="0.10" max="0.50" step="0.01" value="0.28" />
+        </div>
+        <div class="field">
+          <label>Edge softness <span id="spot-feather-v">0.50</span></label>
+          <input type="range" id="spot-feather" min="0.10" max="0.90" step="0.01" value="0.50" />
+        </div>
+        <div class="field">
+          <label>Obscure strength <span id="obscure-v">0.93</span></label>
+          <input type="range" id="obscure" min="0.5" max="1" step="0.01" value="0.93" />
+        </div>
+      </div>
+
+      <div class="section">
         <h3>Ghost Layer</h3>
         <div class="toggle-row" style="margin-bottom:10px">
           <label>Enabled</label>
@@ -436,12 +459,17 @@
     let engine = null;
 
     function getConfig() {
+      const obscureA = parseFloat(document.getElementById('obscure').value);
       return {
         text: document.getElementById('text').value || 'CONFIDENTIAL',
         font: `bold ${document.getElementById('fontsize').value}px Arial, sans-serif`,
         opacity: parseFloat(document.getElementById('opacity').value),
         path: document.getElementById('path').value,
         speed: parseFloat(document.getElementById('speed').value),
+        spotlightEnabled: document.getElementById('spotlight').checked,
+        spotlightRadius: parseFloat(document.getElementById('spot-radius').value),
+        spotlightFeather: parseFloat(document.getElementById('spot-feather').value),
+        obscureColor: `rgba(8,12,20,${obscureA})`,
         tiledEnabled: document.getElementById('tiled').checked,
         tiledOpacity: parseFloat(document.getElementById('tiled-opacity').value),
         onFrame: ({ frame }) => {
@@ -506,19 +534,28 @@
 
     // Live updates
     const updateLive = () => engine && engine.update(getConfig());
-    ['text','opacity','fontsize','path','speed','tiled','tiled-opacity'].forEach((id) => {
+    const ids = [
+      'text','opacity','fontsize','path','speed',
+      'spotlight','spot-radius','spot-feather','obscure',
+      'tiled','tiled-opacity',
+    ];
+    const labelMap = {
+      'opacity': 'opacity-v',
+      'fontsize': 'fontsize-v',
+      'speed': 'speed-v',
+      'spot-radius': 'spot-radius-v',
+      'spot-feather': 'spot-feather-v',
+      'obscure': 'obscure-v',
+      'tiled-opacity': 'tiled-opacity-v',
+    };
+    ids.forEach((id) => {
       document.getElementById(id).addEventListener('input', () => {
-        const map = {
-          'opacity': 'opacity-v',
-          'fontsize': 'fontsize-v',
-          'speed': 'speed-v',
-          'tiled-opacity': 'tiled-opacity-v',
-        };
-        const dispId = map[id];
+        const dispId = labelMap[id];
         if (dispId) {
           const v = document.getElementById(id).value;
           const fmt = id === 'fontsize' ? `${v}px`
             : id === 'speed' ? `${parseFloat(v).toFixed(1)}×`
+            : id === 'spot-radius' ? `${Math.round(parseFloat(v) * 100)}%`
             : parseFloat(v).toFixed(2);
           document.getElementById(dispId).textContent = fmt;
         }

@@ -86,19 +86,30 @@ export class WatermarkLayer {
     }
   }
 
-  tick({ frame, timestamp }) {
+  tick({ frame, timestamp, externalCenter }) {
     const c = this._config;
     const canvas = this._canvas;
     const ctx = this._ctx;
 
-    // Advance path phase
-    const speedFactor = c.speed * 0.0005; // tuned so speed=1 gives ~8s full Lissajous cycle
+    // Advance path phase (always advance state even if external center is used,
+    // so toggling follow-spotlight on/off doesn't snap)
+    const speedFactor = c.speed * 0.0005;
     this._t = mod(this._t + speedFactor, 1);
 
-    // Compute position
     const sw = this._stamp.width;
     const sh = this._stamp.height;
-    const pos = this._path.toCanvas(this._t, canvas.width, canvas.height, sw, sh, c.margin);
+
+    // Position: follow spotlight centre if provided, otherwise use own path
+    let pos;
+    if (externalCenter) {
+      // Offset stamp downward from spotlight centre so it sits below the focus area
+      pos = {
+        x: externalCenter.x - sw / 2,
+        y: externalCenter.y + (c.watermarkSpotlightOffset || 0) - sh / 2,
+      };
+    } else {
+      pos = this._path.toCanvas(this._t, canvas.width, canvas.height, sw, sh, c.margin);
+    }
 
     // Compute current opacity with optional pulse
     let opacity = c.opacity;

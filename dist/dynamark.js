@@ -44,6 +44,15 @@
     tiledSpacing: 160,
     tiledAngle: -30,
 
+    // Spotlight (the moving "clear window" — image is obscured everywhere else)
+    spotlightEnabled: true,
+    spotlightRadius: 0.28,         // fraction of min(width, height); 0.28 ≈ ~30% of image
+    spotlightFeather: 0.5,         // 0–1, where the soft falloff starts (lower = sharper edge)
+    spotlightMargin: 60,           // px, keeps centre away from canvas edges
+    obscureColor: 'rgba(8,12,20,0.93)', // the colour used to obscure everything outside the spotlight
+    watermarkFollowsSpotlight: true,    // text watermark sits inside the clear window
+    watermarkSpotlightOffset: 0,        // px, vertical offset of text from spotlight centre
+
     // Performance
     targetFps: 30,
 
@@ -405,19 +414,30 @@
       }
     }
 
-    tick({ frame, timestamp }) {
+    tick({ frame, timestamp, externalCenter }) {
       const c = this._config;
       const canvas = this._canvas;
       const ctx = this._ctx;
 
-      // Advance path phase
-      const speedFactor = c.speed * 0.0005; // tuned so speed=1 gives ~8s full Lissajous cycle
+      // Advance path phase (always advance state even if external center is used,
+      // so toggling follow-spotlight on/off doesn't snap)
+      const speedFactor = c.speed * 0.0005;
       this._t = mod(this._t + speedFactor, 1);
 
-      // Compute position
       const sw = this._stamp.width;
       const sh = this._stamp.height;
-      const pos = this._path.toCanvas(this._t, canvas.width, canvas.height, sw, sh, c.margin);
+
+      // Position: follow spotlight centre if provided, otherwise use own path
+      let pos;
+      if (externalCenter) {
+        // Offset stamp downward from spotlight centre so it sits below the focus area
+        pos = {
+          x: externalCenter.x - sw / 2,
+          y: externalCenter.y + (c.watermarkSpotlightOffset || 0) - sh / 2,
+        };
+      } else {
+        pos = this._path.toCanvas(this._t, canvas.width, canvas.height, sw, sh, c.margin);
+      }
 
       // Compute current opacity with optional pulse
       let opacity = c.opacity;
@@ -539,6 +559,89 @@
     get canvas() { return this._canvas; }
   }
 
+  // Renders a full-coverage obscure overlay with a moving clear spotlight cut through it.
+  // The spotlight reveals the sharp image underneath while everything outside is
+  // darkened, making screenshots only ever capture a partial view.
+  class SpotlightLayer {
+    constructor(config) {
+      this._canvas = document.createElement('canvas');
+      this._ctx = this._canvas.getContext('2d');
+      this._t = 0;
+      this._path = null;
+      this._config = config;
+      // Current spotlight centre, updated each tick, shared with WatermarkLayer
+      this._cx = 0;
+      this._cy = 0;
+      this._buildPath();
+    }
+
+    _buildPath() {
+      const c = this._config;
+      switch (c.path) {
+        case 'lemniscate': this._path = new LemniscatePath(); break;
+        case 'random':     this._path = new RandomWalkPath(); break;
+        default:
+          this._path = new LissajousPath({
+            a: c.lissajousA, b: c.lissajousB, delta: c.lissajousDelta,
+          });
+      }
+    }
+
+    resize(w, h) {
+      this._canvas.width = w;
+      this._canvas.height = h;
+    }
+
+    update(config) {
+      const rebuildPath = config.path !== this._config.path;
+      this._config = config;
+      if (rebuildPath) this._buildPath();
+    }
+
+    tick({ timestamp }) {
+      const c = this._config;
+      const canvas = this._canvas;
+      const ctx = this._ctx;
+      const w = canvas.width;
+      const h = canvas.height;
+
+      // Advance path phase and get spotlight centre.
+      // Pass 0×0 stamp size so toCanvas returns the centre point directly.
+      this._t = mod(this._t + c.speed * 0.0005, 1);
+      const pos = this._path.toCanvas(this._t, w, h, 0, 0, c.spotlightMargin);
+      this._cx = pos.x;
+      this._cy = pos.y;
+
+      const radius = Math.min(w, h) * c.spotlightRadius;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Step 1: fill entire canvas with the obscure colour
+      ctx.fillStyle = c.obscureColor;
+      ctx.fillRect(0, 0, w, h);
+
+      // Step 2: punch a soft radial hole through the overlay.
+      // destination-out erases what we draw, revealing the image below.
+      ctx.globalCompositeOperation = 'destination-out';
+
+      const grad = ctx.createRadialGradient(this._cx, this._cy, 0, this._cx, this._cy, radius);
+      grad.addColorStop(0,                              'rgba(0,0,0,1)');   // fully clear at centre
+      grad.addColorStop(c.spotlightFeather,             'rgba(0,0,0,0.98)');
+      grad.addColorStop(c.spotlightFeather + 0.25,      'rgba(0,0,0,0.35)');
+      grad.addColorStop(1,                              'rgba(0,0,0,0)');   // fully obscured at edge
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // WatermarkLayer reads this to position text inside the clear window
+    get center() { return { x: this._cx, y: this._cy }; }
+
+    get canvas() { return this._canvas; }
+  }
+
   class WatermarkEngine {
     constructor(container, options = {}) {
       this._config = Object.assign({}, defaults, options);
@@ -546,25 +649,21 @@
         ? document.querySelector(container)
         : container;
 
-      // Output canvas
       this._canvas = document.createElement('canvas');
       this._canvas.style.cssText = 'display:block;width:100%;height:100%;user-select:none;';
       this._ctx = this._canvas.getContext('2d');
       this._container.appendChild(this._canvas);
 
-      // Context-menu guard
       this._canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-      // Layers
       this._imageLayer = new ImageLayer();
+      this._spotlightLayer = new SpotlightLayer(this._config);
       this._watermarkLayer = new WatermarkLayer(this._config);
       this._tiledLayer = new TiledLayer(this._config);
 
-      // Animation loop
       this._loop = new AnimationLoop(this._config.targetFps);
       this._loop.onTick(this._onTick.bind(this));
 
-      // Resize handling
       this._resizeObserver = new ResizeObserver(() => this._resize());
       this._resizeObserver.observe(this._container);
       this._resize();
@@ -576,18 +675,12 @@
       return this;
     }
 
-    start() {
-      this._loop.start();
-      return this;
-    }
-
-    stop() {
-      this._loop.stop();
-      return this;
-    }
+    start() { this._loop.start(); return this; }
+    stop()  { this._loop.stop();  return this; }
 
     update(options = {}) {
       this._config = Object.assign({}, this._config, options);
+      this._spotlightLayer.update(this._config);
       this._watermarkLayer.update(this._config);
       this._tiledLayer.update(this._config);
       this._loop.setTargetFps(this._config.targetFps);
@@ -600,7 +693,6 @@
       this._canvas.remove();
     }
 
-    // Returns a data URL of the current composited frame (watermark burned in)
     export(type = 'image/png') {
       return this._canvas.toDataURL(type);
     }
@@ -611,13 +703,23 @@
       this._canvas.width = w;
       this._canvas.height = h;
       this._imageLayer.resize(w, h);
+      this._spotlightLayer.resize(w, h);
       this._watermarkLayer.resize(w, h);
       this._tiledLayer.resize(w, h);
     }
 
     _onTick(info) {
+      // Spotlight ticks first so its centre is current when the watermark reads it.
+      if (this._config.spotlightEnabled) {
+        this._spotlightLayer.tick(info);
+      }
+
+      const externalCenter = (this._config.spotlightEnabled && this._config.watermarkFollowsSpotlight)
+        ? this._spotlightLayer.center
+        : null;
+
+      this._watermarkLayer.tick({ ...info, externalCenter });
       this._tiledLayer.tick(info);
-      this._watermarkLayer.tick(info);
       this._compose();
       if (this._config.onFrame) this._config.onFrame(info);
     }
@@ -629,13 +731,18 @@
 
       ctx.clearRect(0, 0, w, h);
 
-      // Layer 1: image
+      // 1. Source image
       ctx.drawImage(this._imageLayer.canvas, 0, 0);
 
-      // Layer 2: primary animated watermark
+      // 2. Spotlight overlay — obscures everything except the moving clear window
+      if (this._config.spotlightEnabled) {
+        ctx.drawImage(this._spotlightLayer.canvas, 0, 0);
+      }
+
+      // 3. Primary text/logo watermark (sits in the clear window when following spotlight)
       ctx.drawImage(this._watermarkLayer.canvas, 0, 0);
 
-      // Layer 3: tiled ghost layer (on top so it's never fully masked)
+      // 4. Tiled ghost layer — full-coverage anti-removal pattern
       ctx.drawImage(this._tiledLayer.canvas, 0, 0);
     }
   }
